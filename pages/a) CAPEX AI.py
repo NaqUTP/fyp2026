@@ -379,18 +379,25 @@ class DataPreprocessor:
         return df
 
     @staticmethod
-    def extract_features_target(df):
+    def extract_features_target(df, include_extras=False):
         if df is None or df.empty:
             raise ValueError("Empty dataset")
         target_col = df.columns[-1]
         feature_cols = [c for c in df.columns if c != target_col]
+        # Leakage guard: columns named extra__ are unknown fields kept during
+        # data preparation for review. They may be another form of the cost
+        # (target leakage), so they are held OUT of training unless explicitly
+        # opted in by the user.
+        excluded_extras = [c for c in feature_cols if str(c).startswith("extra__")]
+        if not include_extras:
+            feature_cols = [c for c in feature_cols if not str(c).startswith("extra__")]
         if not feature_cols:
             raise ValueError("No feature columns found")
         X = df[feature_cols].copy()
         y = pd.to_numeric(df[target_col], errors="coerce")
         if y.isna().sum() / len(y) > 0.8:
             raise ValueError(f"Target column '{target_col}' has too many missing values")
-        return X, y, target_col
+        return X, y, target_col, excluded_extras
 
     @staticmethod
     def validate_feature_columns(X):
@@ -463,6 +470,19 @@ class MLPWrapper:
 
 
 # ---- model pipeline ---------------------------------------------------------
+class LogTargetModel:
+    """Wraps a fitted pipeline that was trained on log1p(y); back-transforms
+    predictions to the original cost space so the rest of the app is unchanged."""
+    def __init__(self, inner):
+        self.inner = inner
+        try:
+            self.named_steps = inner.named_steps  # expose importances for the UI
+        except Exception:
+            self.named_steps = {}
+    def predict(self, X):
+        return np.expm1(self.inner.predict(X))
+
+
 class ModelPipeline:
     MODEL_CANDIDATES = {
         "RandomForest": lambda rs=42: RandomForestRegressor(n_estimators=200, random_state=rs, n_jobs=-1),
@@ -488,42 +508,82 @@ class ModelPipeline:
     @classmethod
     @st.cache_resource(show_spinner=False)
     def train_all_cached(_cls, X, y, test_size=0.20, random_state=42,
-                         mlp_epochs=200, mlp_lr=0.001, mlp_batch=32, mlp_patience=20):
-        Xa = X.values.astype(np.float32); ya = y.values.astype(np.float32)
+                         mlp_epochs=200, mlp_lr=0.001, mlp_batch=32, mlp_patience=20,
+                         n_splits=5, n_repeats=3, log_target=False):
+        from sklearn.model_selection import RepeatedKFold, cross_val_score
+        Xa = X.values.astype(np.float32)
+        y_orig = y.values.astype(np.float32)
+        # Optionally train on log1p(cost). Cost is heavily right-skewed, so this
+        # stops a few large projects from dominating RMSE/MAE and usually helps.
+        use_log = bool(log_target) and float(np.nanmin(y_orig)) > -1
+        ya = np.log1p(y_orig) if use_log else y_orig
+
+        def to_cost(v):
+            return np.expm1(v) if use_log else v
+
         Xtr, Xte, ytr, yte = train_test_split(Xa, ya, test_size=test_size, random_state=random_state)
+        yte_cost = to_cost(yte)
+
+        n = len(Xa)
+        can_cv = n >= 10
+        eff_splits = max(2, min(n_splits, n // 2)) if can_cv else 0
+        cv = RepeatedKFold(n_splits=eff_splits, n_repeats=n_repeats, random_state=random_state) if can_cv else None
+
         results = {}
         tree_models = ["RandomForest", "GradientBoosting"]
         if XGBOOST_AVAILABLE:
             tree_models.append("XGBoost")
         for name in tree_models:
-            pipe = _cls.create_pipeline(name, random_state); pipe.fit(Xtr, ytr); yp = pipe.predict(Xte)
-            results[name] = {"pipeline": pipe, "r2": round(float(r2_score(yte, yp)), 4),
-                             "rmse": round(float(np.sqrt(mean_squared_error(yte, yp))), 4),
-                             "mae": round(float(mean_absolute_error(yte, yp)), 4),
-                             "y_test": yte, "y_pred": yp, "type": "sklearn"}
+            pipe = _cls.create_pipeline(name, random_state)
+            pipe.fit(Xtr, ytr)
+            yp_cost = to_cost(pipe.predict(Xte))
+            wrapped = LogTargetModel(pipe) if use_log else pipe
+            entry = {"pipeline": wrapped,
+                     "r2": round(float(r2_score(yte_cost, yp_cost)), 4),
+                     "rmse": round(float(np.sqrt(mean_squared_error(yte_cost, yp_cost))), 4),
+                     "mae": round(float(mean_absolute_error(yte_cost, yp_cost)), 4),
+                     "y_test": yte_cost, "y_pred": yp_cost, "type": "sklearn"}
+            if cv is not None:
+                scores = cross_val_score(_cls.create_pipeline(name, random_state), Xa, ya,
+                                         cv=cv, scoring="r2", n_jobs=-1)
+                entry["cv_r2_mean"] = round(float(np.mean(scores)), 4)
+                entry["cv_r2_std"] = round(float(np.std(scores)), 4)
+            else:
+                entry["cv_r2_mean"] = None; entry["cv_r2_std"] = None
+            results[name] = entry
+
         if TORCH_AVAILABLE and len(Xtr) >= 20:
             mlp = MLPWrapper(Xtr.shape[1], mlp_epochs, mlp_lr, mlp_batch, mlp_patience, random_state)
-            mlp.fit(Xtr, ytr); ypm = mlp.predict(Xte)
-            results["MLP"] = {"pipeline": mlp, "r2": round(float(r2_score(yte, ypm)), 4),
-                              "rmse": round(float(np.sqrt(mean_squared_error(yte, ypm))), 4),
-                              "mae": round(float(mean_absolute_error(yte, ypm)), 4),
-                              "y_test": yte, "y_pred": ypm,
+            mlp.fit(Xtr, ytr)
+            ypm_cost = to_cost(mlp.predict(Xte))
+            wrapped_mlp = LogTargetModel(mlp) if use_log else mlp
+            results["MLP"] = {"pipeline": wrapped_mlp, "r2": round(float(r2_score(yte_cost, ypm_cost)), 4),
+                              "rmse": round(float(np.sqrt(mean_squared_error(yte_cost, ypm_cost))), 4),
+                              "mae": round(float(mean_absolute_error(yte_cost, ypm_cost)), 4),
+                              "y_test": yte_cost, "y_pred": ypm_cost, "cv_r2_mean": None, "cv_r2_std": None,
                               "train_losses": mlp.train_losses, "val_losses": mlp.val_losses, "type": "mlp"}
         else:
             reason = "PyTorch not installed." if not TORCH_AVAILABLE else "Too few rows for MLP (need 20+)."
             results["MLP"] = {"pipeline": None, "r2": None, "rmse": None, "mae": None,
-                              "y_test": yte, "y_pred": np.zeros_like(yte),
+                              "cv_r2_mean": None, "cv_r2_std": None,
+                              "y_test": yte_cost, "y_pred": np.zeros_like(yte_cost),
                               "train_losses": [], "val_losses": [], "type": "mlp", "error": reason}
-        # baseline: predict the mean (reference point for R2)
+
         dummy = DummyRegressor(strategy="mean").fit(Xtr, ytr)
-        base_r2 = round(float(r2_score(yte, dummy.predict(Xte))), 4)
+        base_r2 = round(float(r2_score(yte_cost, to_cost(dummy.predict(Xte)))), 4)
+
         valid = {k: v for k, v in results.items() if v["r2"] is not None}
-        best = max(valid, key=lambda k: valid[k]["r2"]); bm = valid[best]
+        def sel_key(k):
+            v = valid[k]
+            return v["cv_r2_mean"] if v.get("cv_r2_mean") is not None else v["r2"]
+        best = max(valid, key=sel_key); bm = valid[best]
         return {"rf": results["RandomForest"], "gb": results["GradientBoosting"], "mlp": results["MLP"],
                 "xgb": results.get("XGBoost"),
                 "best": best, "pipeline": bm["pipeline"], "feature_cols": list(X.columns),
                 "model": best, "r2": bm["r2"], "rmse": bm["rmse"], "mae": bm["mae"],
-                "baseline_r2": base_r2}
+                "cv_r2_mean": bm.get("cv_r2_mean"), "cv_r2_std": bm.get("cv_r2_std"),
+                "baseline_r2": base_r2, "cv_folds": eff_splits, "cv_repeats": n_repeats if can_cv else 0,
+                "n_rows": n, "log_target": use_log}
 
     @staticmethod
     def prepare_prediction_input(feature_cols, payload):
@@ -673,6 +733,23 @@ with tab_prep:
 # TAB 1 - DATA & MODELS
 # =============================================================================
 with tab_data:
+    with st.expander("ℹ️ Scope, method and limitations (read before interpreting results)", expanded=False):
+        st.markdown(
+            "**What this tool is.** A screening-level, data-driven CAPEX estimator for early "
+            "concept evaluation and comparison. It is not a detailed, sanction-grade estimate.\n\n"
+            "**Method.** Random Forest, Gradient Boosting, XGBoost and an MLP are compared with "
+            "repeated cross-validation; the best is chosen by cross-validated mean R² against a "
+            "predict-the-mean baseline. Cost is log-transformed by default because it is right-skewed. "
+            "Columns kept as `extra__` during preparation are held out of training to avoid target leakage.\n\n"
+            "**Known limitations to state honestly.**\n"
+            "- Some datasets derive CAPEX from decommissioning cost via an assumed ratio; that ratio "
+            "is a documented assumption, not a measured value, and removal cost is not the same as build cost.\n"
+            "- Figures are not normalised for cost year or region, so time and geography differences are not removed.\n"
+            "- The CPP dataset is semi-synthetic (real features, modelled cost), so its score reflects the "
+            "cost formula, not validation against real cost.\n"
+            "- Small samples mean model differences are often within noise; treat the 'best model' as indicative.\n"
+            "- Monte Carlo perturbs inputs independently; it is an input-sensitivity view, not full cost risk.\n\n"
+            "These points are limitations by design and are the focus of ongoing work.")
     st.markdown('<h3 style="margin-top:0;color:#E6E9EF;">📁 Data</h3>', unsafe_allow_html=True)
     uploaded_files = st.file_uploader("Upload CSV files (the last column is treated as the CAPEX target)",
                                       type="csv", accept_multiple_files=True,
@@ -723,10 +800,20 @@ with tab_data:
         ds_name_model = st.selectbox("Dataset for training", list(st.session_state.datasets.keys()), key="ds_model")
         df_model = st.session_state.datasets[ds_name_model]
         data_ok = False
+        # peek at whether this dataset has any extra__ columns to offer the opt-in
+        has_extras = any(str(c).startswith("extra__") for c in df_model.columns)
+        include_extras = False
+        if has_extras:
+            include_extras = st.checkbox(
+                "Include 'extra__' columns as features (off by default to prevent target leakage)",
+                value=False, key=f"include_extras_{ds_name_model}")
         try:
-            X, y, target_col = DataPreprocessor.extract_features_target(df_model)
+            X, y, target_col, excluded_extras = DataPreprocessor.extract_features_target(df_model, include_extras)
             X = DataPreprocessor.validate_feature_columns(X)
             st.success(f"Ready — **{X.shape[1]} features**, target: **{target_col}**")
+            if excluded_extras and not include_extras:
+                st.info("Held out of training to avoid leakage: " + ", ".join(excluded_extras) +
+                        ". Tick the box above only if you are sure these are genuine cost drivers, not another form of the cost.")
             c1, c2, c3 = st.columns(3)
             c1.metric("Features", X.shape[1]); c2.metric("Samples", X.shape[0])
             valid_n = int(y.notna().sum()); c3.metric("Valid targets", f"{valid_n} ({valid_n/len(y)*100:.0f}%)")
@@ -740,6 +827,8 @@ with tab_data:
                 test_size = st.slider("Test set size", 0.10, 0.40, 0.20, 0.05, key="train_test_size")
                 train_pct = round((1 - test_size) * 100); test_pct = round(test_size * 100)
                 st.caption(f"Train {train_pct}%  ·  Test {test_pct}%")
+                log_target = st.checkbox("Log-transform the target (recommended for skewed cost data)",
+                                         value=True, key="log_target_toggle")
             with btn_col:
                 st.write(""); st.write("")
                 run_train = st.button("🚀 Train RF, GB & MLP", key="run_training_btn", type="primary")
@@ -758,7 +847,8 @@ with tab_data:
                     with st.spinner("Training Random Forest, Gradient Boosting, and MLP…"):
                         metrics = ModelPipeline.train_all_cached(X, y, float(test_size), 42,
                                                                  int(mlp_epochs), float(mlp_lr),
-                                                                 int(mlp_batch), int(mlp_patience))
+                                                                 int(mlp_batch), int(mlp_patience),
+                                                                 log_target=bool(log_target))
                     st.session_state._last_metrics = metrics
                     st.session_state[f"trained_model__{ds_name_model}"] = metrics
                     st.session_state[f"current_pipeline__{ds_name_model}"] = metrics["pipeline"]
@@ -772,29 +862,50 @@ with tab_data:
 
                     rf, gb, mlp = metrics["rf"], metrics["gb"], metrics["mlp"]
                     xgb = metrics.get("xgb")
+                    def cv_str(m):
+                        if m is None or m.get("cv_r2_mean") is None:
+                            return "n/a"
+                        return f"{m['cv_r2_mean']:.3f} ± {m['cv_r2_std']:.3f}"
                     mlp_r2 = mlp["r2"] if mlp["r2"] is not None else float("nan")
                     mlp_rmse = mlp["rmse"] if mlp["rmse"] is not None else float("nan")
                     mlp_mae = mlp["mae"] if mlp["mae"] is not None else float("nan")
                     table = {
-                        "Metric": ["R² Score ↑", "RMSE ↓", "MAE ↓"],
-                        "Random Forest": [rf["r2"], rf["rmse"], rf["mae"]],
-                        "Gradient Boosting": [gb["r2"], gb["rmse"], gb["mae"]],
+                        "Metric": ["CV R² (mean ± std) ↑", "Test R² ↑", "Test RMSE ↓", "Test MAE ↓"],
+                        "Random Forest": [cv_str(rf), rf["r2"], rf["rmse"], rf["mae"]],
+                        "Gradient Boosting": [cv_str(gb), gb["r2"], gb["rmse"], gb["mae"]],
                     }
                     if xgb is not None:
-                        table["XGBoost"] = [xgb["r2"], xgb["rmse"], xgb["mae"]]
-                    table["MLP (Deep Learning)"] = [mlp_r2, mlp_rmse, mlp_mae]
+                        table["XGBoost"] = [cv_str(xgb), xgb["r2"], xgb["rmse"], xgb["mae"]]
+                    table["MLP (Deep Learning)"] = [cv_str(mlp), mlp_r2, mlp_rmse, mlp_mae]
                     compare_df = pd.DataFrame(table)
                     st.markdown("##### Model Comparison")
                     st.dataframe(compare_df, use_container_width=True, hide_index=True)
-                    st.caption(f"Baseline (predict the mean) R² = {metrics['baseline_r2']}. "
-                               f"A useful model should clearly beat this.")
+                    folds = metrics.get("cv_folds", 0); reps = metrics.get("cv_repeats", 0)
+                    if folds:
+                        st.caption(f"Cross-validation: {folds}-fold repeated {reps}x. Model selected by CV mean R², "
+                                   f"not the single test score, to avoid selecting on the test set. "
+                                   f"Baseline (predict the mean) test R² = {metrics['baseline_r2']}; a useful model must clearly beat this.")
+                    else:
+                        st.caption(f"Dataset too small for cross-validation; showing single-split test scores only. "
+                                   f"Baseline (predict the mean) test R² = {metrics['baseline_r2']}. "
+                                   f"Treat these numbers as indicative.")
 
                     winner = metrics["best"]
                     winner_label = {"RandomForest": "Random Forest", "GradientBoosting": "Gradient Boosting",
                                     "XGBoost": "XGBoost", "MLP": "MLP (Deep Learning)"}.get(winner, winner)
-                    st.success(f"**{winner_label}** selected as active model (highest R²)")
+                    sel_metric = (f"CV R² {metrics['cv_r2_mean']:.3f} ± {metrics['cv_r2_std']:.3f}"
+                                  if metrics.get("cv_r2_mean") is not None else f"test R² {metrics['r2']:.4f}")
+                    st.success(f"**{winner_label}** selected as active model ({sel_metric})")
+                    # honesty note when the top models are within one std of each other
+                    cv_vals = [(k, metrics[k]) for k in ("rf", "gb", "xgb") if metrics.get(k) and metrics[k].get("cv_r2_mean") is not None]
+                    if len(cv_vals) >= 2:
+                        cv_vals.sort(key=lambda kv: kv[1]["cv_r2_mean"], reverse=True)
+                        top = cv_vals[0][1]; second = cv_vals[1][1]
+                        if abs(top["cv_r2_mean"] - second["cv_r2_mean"]) < top["cv_r2_std"]:
+                            st.info("The top models are within one standard deviation of each other, so on this dataset "
+                                    "they are statistically indistinguishable. Treat the 'best' label as indicative, not decisive.")
                     m1, m2, m3, m4 = st.columns(4)
-                    m1.metric("Model", winner_label); m2.metric("R²", f"{metrics['r2']:.4f}")
+                    m1.metric("Model", winner_label); m2.metric("Test R²", f"{metrics['r2']:.4f}")
                     m3.metric("RMSE", f"{metrics['rmse']:,.2f}"); m4.metric("MAE", f"{metrics['mae']:,.2f}")
 
                     st.markdown("##### Actual vs Predicted — All Models")
@@ -902,11 +1013,21 @@ with tab_data:
                     st.session_state.predictions.setdefault(ds_name_pred, []).append(result)
                     toast("Prediction added!")
                     r1, r2c, r3, r4, r5 = st.columns(5)
-                    r1.metric("Base CAPEX", f"{currency_pred} {base_pred:,.2f}")
-                    r2c.metric("Owner's Cost", f"{currency_pred} {owners_cost:,.2f}")
-                    r3.metric("SST", f"{currency_pred} {sst_cost:,.2f}")
-                    r4.metric("Contingency", f"{currency_pred} {contingency:,.2f}")
-                    r5.metric("Grand Total", f"{currency_pred} {grand_total:,.2f}")
+                    r1.metric("Base CAPEX", f"{currency_pred} {base_pred:,.1f}")
+                    r2c.metric("Owner's Cost", f"{currency_pred} {owners_cost:,.1f}")
+                    r3.metric("SST", f"{currency_pred} {sst_cost:,.1f}")
+                    r4.metric("Contingency", f"{currency_pred} {contingency:,.1f}")
+                    r5.metric("Grand Total", f"{currency_pred} {grand_total:,.1f}")
+                    # AACE Class 5 screening estimate: report a range, not false precision
+                    low, high = base_pred * 0.70, base_pred * 1.50
+                    st.markdown(
+                        f"<div style='background:#171B22;border:1px solid rgba(255,255,255,.10);"
+                        f"border-radius:10px;padding:12px 16px;margin-top:8px;'>"
+                        f"<b style='color:#00A19B;'>Screening estimate range (AACE Class 5):</b> "
+                        f"<span style='font-size:1.1rem;'>{currency_pred} {low:,.0f} to {high:,.0f}</span>"
+                        f"<br><span style='color:#9AA3B2;font-size:.85rem;'>Order-of-magnitude, roughly -30% to +50%. "
+                        f"For early screening and comparison, not for sanction or budget authorisation.</span></div>",
+                        unsafe_allow_html=True)
                 except Exception as e:
                     st.error(f"Prediction failed: {e}")
 
