@@ -93,6 +93,12 @@ h1,h2,h3,h4,h5,h6,p,span,label,li,div,.stMarkdown{{color:var(--text) !important;
 [data-baseweb="popover"],[role="listbox"]{{background:var(--panel2) !important;color:var(--text) !important;}}
 [data-testid="stTextInput"] input::placeholder,textarea::placeholder{{color:#5B6472 !important;}}
 [data-testid="stFileUploaderDropzone"]{{background:var(--panel2) !important;border:1px dashed var(--border) !important;color:var(--text) !important;}}
+[data-testid="stFileUploaderDropzone"] *{{color:var(--text) !important;}}
+/* the "Browse files" button inside the uploader (a secondary button) */
+[data-testid="stFileUploaderDropzone"] button,[data-testid="baseButton-secondary"]{{background:linear-gradient(to right,{PETRONAS["teal"]},{PETRONAS["purple"]}) !important;color:#fff !important;border:none !important;border-radius:8px !important;font-weight:600 !important;}}
+[data-testid="stFileUploaderDropzone"] button *,[data-testid="baseButton-secondary"] *{{color:#fff !important;}}
+[data-testid="stFileUploaderDropzone"] button svg{{fill:#fff !important;stroke:#fff !important;}}
+[data-testid="stFileUploaderDropzone"] small{{color:var(--muted) !important;}}
 [data-testid="stWidgetLabel"] label,[data-testid="stWidgetLabel"] p{{color:var(--text) !important;}}
 
 /* metrics */
