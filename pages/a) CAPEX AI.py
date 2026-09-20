@@ -42,6 +42,12 @@ try:
 except ImportError:
     TORCH_AVAILABLE = False
 
+try:
+    from xgboost import XGBRegressor
+    XGBOOST_AVAILABLE = True
+except Exception:
+    XGBOOST_AVAILABLE = False
+
 import plotly.express as px
 import plotly.graph_objects as go
 
@@ -131,7 +137,7 @@ h1,h2,h3,h4,h5,h6,p,span,label,li,div,.stMarkdown{{color:var(--text) !important;
 hr{{border-color:var(--border) !important;}}
 </style>""", unsafe_allow_html=True)
 
-st.markdown("""<div class="petronas-hero"><h1>CAPEX AI RT2026</h1><p>Data-driven CAPEX prediction · Random Forest, Gradient Boosting &amp; MLP</p></div>""", unsafe_allow_html=True)
+st.markdown("""<div class="petronas-hero"><h1>CAPEX AI RT2026</h1><p>Data-driven CAPEX prediction · Random Forest, Gradient Boosting, XGBoost Random Forest, Gradient Boosting &amp; MLPamp; MLP</p></div>""", unsafe_allow_html=True)
 
 # ---- session state ----------------------------------------------------------
 for key, default in [("datasets", {}), ("predictions", {}), ("processed_excel_files", set()),
@@ -463,6 +469,10 @@ class ModelPipeline:
         "GradientBoosting": lambda rs=42: GradientBoostingRegressor(n_estimators=200, learning_rate=0.05,
                                                                     max_depth=4, subsample=0.8, random_state=rs),
     }
+    if XGBOOST_AVAILABLE:
+        MODEL_CANDIDATES["XGBoost"] = lambda rs=42: XGBRegressor(
+            n_estimators=300, learning_rate=0.05, max_depth=4, subsample=0.8,
+            colsample_bytree=0.8, random_state=rs, n_jobs=-1, verbosity=0)
 
     @classmethod
     def create_pipeline(cls, model_name, random_state=42):
@@ -482,7 +492,10 @@ class ModelPipeline:
         Xa = X.values.astype(np.float32); ya = y.values.astype(np.float32)
         Xtr, Xte, ytr, yte = train_test_split(Xa, ya, test_size=test_size, random_state=random_state)
         results = {}
-        for name in ("RandomForest", "GradientBoosting"):
+        tree_models = ["RandomForest", "GradientBoosting"]
+        if XGBOOST_AVAILABLE:
+            tree_models.append("XGBoost")
+        for name in tree_models:
             pipe = _cls.create_pipeline(name, random_state); pipe.fit(Xtr, ytr); yp = pipe.predict(Xte)
             results[name] = {"pipeline": pipe, "r2": round(float(r2_score(yte, yp)), 4),
                              "rmse": round(float(np.sqrt(mean_squared_error(yte, yp))), 4),
@@ -507,6 +520,7 @@ class ModelPipeline:
         valid = {k: v for k, v in results.items() if v["r2"] is not None}
         best = max(valid, key=lambda k: valid[k]["r2"]); bm = valid[best]
         return {"rf": results["RandomForest"], "gb": results["GradientBoosting"], "mlp": results["MLP"],
+                "xgb": results.get("XGBoost"),
                 "best": best, "pipeline": bm["pipeline"], "feature_cols": list(X.columns),
                 "model": best, "r2": bm["r2"], "rmse": bm["rmse"], "mae": bm["mae"],
                 "baseline_r2": base_r2}
@@ -757,22 +771,27 @@ with tab_data:
                     toast("Training complete! 🎉")
 
                     rf, gb, mlp = metrics["rf"], metrics["gb"], metrics["mlp"]
+                    xgb = metrics.get("xgb")
                     mlp_r2 = mlp["r2"] if mlp["r2"] is not None else float("nan")
                     mlp_rmse = mlp["rmse"] if mlp["rmse"] is not None else float("nan")
                     mlp_mae = mlp["mae"] if mlp["mae"] is not None else float("nan")
-                    compare_df = pd.DataFrame({
+                    table = {
                         "Metric": ["R² Score ↑", "RMSE ↓", "MAE ↓"],
                         "Random Forest": [rf["r2"], rf["rmse"], rf["mae"]],
                         "Gradient Boosting": [gb["r2"], gb["rmse"], gb["mae"]],
-                        "MLP (Deep Learning)": [mlp_r2, mlp_rmse, mlp_mae]})
-                    st.markdown("##### Model Comparison — RF vs GB vs MLP")
+                    }
+                    if xgb is not None:
+                        table["XGBoost"] = [xgb["r2"], xgb["rmse"], xgb["mae"]]
+                    table["MLP (Deep Learning)"] = [mlp_r2, mlp_rmse, mlp_mae]
+                    compare_df = pd.DataFrame(table)
+                    st.markdown("##### Model Comparison")
                     st.dataframe(compare_df, use_container_width=True, hide_index=True)
                     st.caption(f"Baseline (predict the mean) R² = {metrics['baseline_r2']}. "
                                f"A useful model should clearly beat this.")
 
                     winner = metrics["best"]
                     winner_label = {"RandomForest": "Random Forest", "GradientBoosting": "Gradient Boosting",
-                                    "MLP": "MLP (Deep Learning)"}.get(winner, winner)
+                                    "XGBoost": "XGBoost", "MLP": "MLP (Deep Learning)"}.get(winner, winner)
                     st.success(f"**{winner_label}** selected as active model (highest R²)")
                     m1, m2, m3, m4 = st.columns(4)
                     m1.metric("Model", winner_label); m2.metric("R²", f"{metrics['r2']:.4f}")
@@ -780,11 +799,13 @@ with tab_data:
 
                     st.markdown("##### Actual vs Predicted — All Models")
                     fig_scatter = go.Figure(); all_vals = []
-                    for key, label, colour in [("rf", "Random Forest", "#00A19B"),
-                                               ("gb", "Gradient Boosting", "#6C4DD3"),
-                                               ("mlp", "MLP", "#F4801A")]:
-                        m = metrics[key]
-                        if m["r2"] is None: continue
+                    scatter_models = [("rf", "Random Forest", "#00A19B"),
+                                      ("gb", "Gradient Boosting", "#6C4DD3"),
+                                      ("xgb", "XGBoost", "#E5654B"),
+                                      ("mlp", "MLP", "#F4801A")]
+                    for key, label, colour in scatter_models:
+                        m = metrics.get(key)
+                        if not m or m.get("r2") is None: continue
                         fig_scatter.add_trace(go.Scatter(x=m["y_test"], y=m["y_pred"], mode="markers",
                                                          marker=dict(color=colour, opacity=0.55, size=6), name=label))
                         all_vals.extend(list(m["y_test"])); all_vals.extend(list(m["y_pred"]))
@@ -798,16 +819,18 @@ with tab_data:
                                               legend=dict(orientation="h", y=-0.18))
                     st.plotly_chart(fig_scatter, use_container_width=True)
 
-                    st.markdown("##### Feature Importance — RF vs GB")
-                    fi_left, fi_right = st.columns(2)
-                    for container, (label, bkey) in zip([fi_left, fi_right],
-                                                        [("Random Forest", "rf"), ("Gradient Boosting", "gb")]):
+                    st.markdown("##### Feature Importance")
+                    fi_specs = [("Random Forest", "rf", "#00A19B"), ("Gradient Boosting", "gb", "#6C4DD3")]
+                    if metrics.get("xgb") is not None:
+                        fi_specs.append(("XGBoost", "xgb", "#E5654B"))
+                    fi_containers = st.columns(len(fi_specs))
+                    for container, (label, bkey, colour) in zip(fi_containers, fi_specs):
                         pipe = metrics[bkey]["pipeline"]
                         fi_df = pd.DataFrame({"Feature": metrics["feature_cols"],
                                               "Importance": pipe.named_steps["model"].feature_importances_}
                                              ).sort_values("Importance", ascending=True)
                         fig_fi = go.Figure(go.Bar(x=fi_df["Importance"], y=fi_df["Feature"], orientation="h",
-                                                  marker_color="#00A19B" if bkey == "rf" else "#6C4DD3"))
+                                                  marker_color=colour))
                         fig_fi.update_layout(title=label, xaxis_title="Importance",
                                              height=max(260, 32 * len(fi_df)), margin=dict(l=0, r=0, t=35, b=0),
                                              paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
