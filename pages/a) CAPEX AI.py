@@ -60,21 +60,69 @@ SHAREPOINT_LINKS = {
 
 st.markdown(f"""<style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-html,body{{font-family:'Inter',sans-serif;}}
-[data-testid="stAppViewContainer"]{{background:{PETRONAS["white"]};color:{PETRONAS["black"]};padding-top:.5rem;}}
+:root{{
+  --bg:#0E1116; --panel:#171B22; --panel2:#1E232C; --elev:#232A34;
+  --text:#E6E9EF; --muted:#9AA3B2; --border:rgba(255,255,255,.10);
+  --teal:#00A19B; --purple:#6C4DD3;
+}}
+html,body,[class*="css"]{{font-family:'Inter',sans-serif;}}
+.stApp,[data-testid="stAppViewContainer"]{{background:var(--bg) !important;color:var(--text) !important;padding-top:.5rem;}}
+[data-testid="stHeader"]{{background:transparent !important;}}
 #MainMenu,footer{{visibility:hidden;}}
-[data-testid="stSidebar"]{{background:linear-gradient(180deg,{PETRONAS["teal"]} 0%,{PETRONAS["teal_dark"]} 100%) !important;color:#fff !important;border-top-right-radius:16px;border-bottom-right-radius:16px;box-shadow:0 6px 20px rgba(0,0,0,.15);}}
-[data-testid="stSidebar"] *{{color:#fff !important;}}
-.petronas-hero{{border-radius:20px;padding:26px 30px;margin:6px 0 18px 0;color:#fff;background:linear-gradient(135deg,{PETRONAS["teal"]},{PETRONAS["purple"]},{PETRONAS["black"]});background-size:200% 200%;animation:heroGradient 8s ease-in-out infinite;box-shadow:0 10px 24px rgba(0,0,0,.12);}}
+h1,h2,h3,h4,h5,h6,p,span,label,li,div,.stMarkdown{{color:var(--text) !important;}}
+.stCaption,[data-testid="stCaptionContainer"],small{{color:var(--muted) !important;}}
+
+/* sidebar */
+[data-testid="stSidebar"]{{background:linear-gradient(180deg,#12161C 0%,#0E1116 100%) !important;border-right:1px solid var(--border);}}
+[data-testid="stSidebar"] *{{color:var(--text) !important;}}
+
+/* hero */
+.petronas-hero{{border-radius:20px;padding:26px 30px;margin:6px 0 18px 0;color:#fff !important;background:linear-gradient(135deg,{PETRONAS["teal"]},{PETRONAS["purple"]},#0A0D12);background-size:200% 200%;animation:heroGradient 8s ease-in-out infinite;box-shadow:0 10px 30px rgba(0,0,0,.5);border:1px solid var(--border);}}
 @keyframes heroGradient{{0%{{background-position:0% 50%}}50%{{background-position:100% 50%}}100%{{background-position:0% 50%}}}}
-.petronas-hero h1{{margin:0 0 5px;font-weight:800;letter-spacing:.3px;}}
-.petronas-hero p{{margin:0;opacity:.9;font-weight:500;}}
+.petronas-hero h1{{margin:0 0 5px;font-weight:800;letter-spacing:.3px;color:#fff !important;}}
+.petronas-hero p{{margin:0;opacity:.92;font-weight:500;color:#fff !important;}}
+
+/* buttons */
 .stButton>button,.stDownloadButton>button,.petronas-button{{border-radius:10px;padding:.6rem 1.1rem;font-weight:600;color:#fff !important;border:none;background:linear-gradient(to right,{PETRONAS["teal"]},{PETRONAS["purple"]});background-size:200% auto;transition:background-position .85s ease,transform .2s ease,box-shadow .25s ease;text-decoration:none;display:inline-block;}}
-.stButton>button:hover,.stDownloadButton>button:hover,.petronas-button:hover{{background-position:right center;transform:translateY(-1px);box-shadow:0 6px 16px rgba(0,0,0,.18);}}
-.stTabs [role="tablist"]{{display:flex;gap:8px;border-bottom:none;padding-bottom:6px;}}
-.stTabs [role="tab"]{{background:#fff;color:{PETRONAS["black"]};border-radius:8px;padding:10px 18px;border:1px solid {PETRONAS["border"]};font-weight:600;transition:all .3s ease;}}
-.stTabs [role="tab"]:hover{{background:linear-gradient(to right,{PETRONAS["teal"]},{PETRONAS["purple"]});color:#fff;}}
-.stTabs [role="tab"][aria-selected="true"]{{background:linear-gradient(to right,{PETRONAS["teal"]},{PETRONAS["purple"]});color:#fff;border-color:transparent;box-shadow:0 4px 16px rgba(0,0,0,.15);}}
+.stButton>button:hover,.stDownloadButton>button:hover,.petronas-button:hover{{background-position:right center;transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,161,155,.35);}}
+
+/* inputs: dark fields with light text */
+[data-testid="stTextInput"] input,[data-testid="stNumberInput"] input,textarea,.stTextArea textarea{{background:var(--panel2) !important;color:var(--text) !important;border:1px solid var(--border) !important;border-radius:9px !important;}}
+[data-baseweb="select"]>div{{background:var(--panel2) !important;border:1px solid var(--border) !important;color:var(--text) !important;}}
+[data-baseweb="select"] *{{color:var(--text) !important;}}
+[data-baseweb="popover"],[role="listbox"]{{background:var(--panel2) !important;color:var(--text) !important;}}
+[data-testid="stTextInput"] input::placeholder,textarea::placeholder{{color:#5B6472 !important;}}
+[data-testid="stFileUploaderDropzone"]{{background:var(--panel2) !important;border:1px dashed var(--border) !important;color:var(--text) !important;}}
+[data-testid="stWidgetLabel"] label,[data-testid="stWidgetLabel"] p{{color:var(--text) !important;}}
+
+/* metrics */
+[data-testid="stMetric"]{{background:var(--panel) !important;border:1px solid var(--border);border-radius:12px;padding:12px 14px;}}
+[data-testid="stMetricValue"]{{color:var(--text) !important;}}
+[data-testid="stMetricLabel"]{{color:var(--muted) !important;}}
+
+/* tabs */
+.stTabs [role="tablist"]{{display:flex;gap:8px;border-bottom:none;padding-bottom:6px;flex-wrap:wrap;}}
+.stTabs [role="tab"]{{background:var(--panel) !important;color:var(--text) !important;border-radius:8px;padding:10px 18px;border:1px solid var(--border);font-weight:600;transition:all .3s ease;}}
+.stTabs [role="tab"] p{{color:var(--text) !important;}}
+.stTabs [role="tab"]:hover{{background:linear-gradient(to right,{PETRONAS["teal"]},{PETRONAS["purple"]}) !important;}}
+.stTabs [role="tab"][aria-selected="true"]{{background:linear-gradient(to right,{PETRONAS["teal"]},{PETRONAS["purple"]}) !important;border-color:transparent;box-shadow:0 4px 16px rgba(0,0,0,.4);}}
+.stTabs [role="tab"][aria-selected="true"] p{{color:#fff !important;}}
+
+/* dataframes + tables */
+[data-testid="stDataFrame"],[data-testid="stTable"]{{background:var(--panel) !important;border:1px solid var(--border);border-radius:10px;}}
+[data-testid="stExpander"]{{background:var(--panel) !important;border:1px solid var(--border) !important;border-radius:10px;}}
+[data-testid="stExpander"] summary,[data-testid="stExpander"] p{{color:var(--text) !important;}}
+
+/* alerts stay readable on dark */
+[data-testid="stAlert"]{{border-radius:10px;}}
+
+/* chat */
+[data-testid="stChatMessage"]{{background:var(--panel) !important;border:1px solid var(--border);border-radius:12px;}}
+.stChatInput textarea,[data-testid="stChatInput"] textarea{{background:var(--panel2) !important;color:var(--text) !important;}}
+
+/* radio / checkbox labels */
+[data-testid="stRadio"] label,[data-testid="stCheckbox"] label{{color:var(--text) !important;}}
+hr{{border-color:var(--border) !important;}}
 </style>""", unsafe_allow_html=True)
 
 st.markdown("""<div class="petronas-hero"><h1>CAPEX AI RT2026</h1><p>Data-driven CAPEX prediction · Random Forest, Gradient Boosting &amp; MLP</p></div>""", unsafe_allow_html=True)
@@ -161,6 +209,154 @@ def dataset_feature_means(ds_name):
 
 
 # ---- data preprocessing -----------------------------------------------------
+
+# =============================================================================
+# DATA PREPARATION ENGINE
+# Maps messy raw columns to the canonical cost-driver schema per facility type,
+# converts units, drops identifier/metadata columns, and flags out-of-range rows.
+# =============================================================================
+PREP_SCHEMAS = {
+    "Pipeline": {
+        "features": {
+            "Diameter_mm":  ["diameter", "dia", "od", "nominal size", "ppl_size", "size"],
+            "Capacity_bpd": ["capacity", "throughput", "flow", "boe", "bpd"],
+            "Length_km":    ["length", "len", "distance", "km"],
+        },
+        "target_aliases": ["cost", "capex", "price", "mmusd"],
+        "units": {"Diameter_mm": [("in", 25.4), ("inch", 25.4)], "Length_km": [("m", 0.001), ("mile", 1.60934)]},
+        "ranges": {"Diameter_mm": (10, 2000), "Capacity_bpd": (0, 5_000_000), "Length_km": (0, 5000)},
+    },
+    "WHP": {
+        "features": {
+            "Water_Depth_m":     ["water depth", "depth", "wtr_dpth", "wd"],
+            "Num_Wells":         ["num wells", "wells", "well count", "n_wells", "slots"],
+            "Topsides_Weight_t": ["topside", "topsides weight", "deck weight"],
+            "Jacket_Weight_t":   ["jacket", "jacket weight", "substructure"],
+            "Is_Unmanned":       ["unmanned", "manned", "is_unmanned"],
+            "Remoteness_km":     ["remoteness", "distance to shore", "shore distance"],
+        },
+        "target_aliases": ["capex", "cost", "mmusd"],
+        "units": {"Water_Depth_m": [("ft", 0.3048), ("feet", 0.3048)],
+                  "Topsides_Weight_t": [("kg", 0.001), ("lb", 0.000453592)],
+                  "Jacket_Weight_t": [("kg", 0.001), ("lb", 0.000453592)]},
+        "ranges": {"Water_Depth_m": (0, 500), "Num_Wells": (0, 60), "Topsides_Weight_t": (0, 60000),
+                   "Jacket_Weight_t": (0, 60000), "Is_Unmanned": (0, 1), "Remoteness_km": (0, 2000)},
+    },
+    "CPP": {
+        "features": {
+            "Water_Depth_m":       ["water depth", "depth", "wtr_dpth", "wd"],
+            "Structure_Type":      ["structure", "structure type", "type", "fcl_kind", "kind"],
+            "Slot_Capacity_Gross": ["slot", "slot capacity", "slots", "num wells", "wells"],
+            "Design_Life_years":   ["design life", "lifetime", "design_life"],
+            "Has_Drilling":        ["drilling", "has_drilling", "drill"],
+            "Has_Storage":         ["storage", "has_storage"],
+            "Has_Quarter":         ["quarter", "quarters", "accommodation"],
+        },
+        "target_aliases": ["capex", "cost", "mmusd"],
+        "units": {"Water_Depth_m": [("ft", 0.3048), ("feet", 0.3048)]},
+        "ranges": {"Water_Depth_m": (0, 2000), "Slot_Capacity_Gross": (0, 80), "Design_Life_years": (0, 60),
+                   "Has_Drilling": (0, 1), "Has_Storage": (0, 1), "Has_Quarter": (0, 1)},
+    },
+}
+PREP_DROP_HINTS = ["year", "date", "startup", "sanction", "vintage", "id", "identifier", "uid", "guid",
+                   "npdid", "api", "name", "field", "block", "area", "lease", "complex", "segment",
+                   "status", "phase", "basis", "source", "operator", "owner name", "note", "comment",
+                   "remark", "url", "link", "code"]
+
+def _prep_norm(s):
+    return re.sub(r"[^a-z0-9 ]", " ", str(s).lower()).strip()
+
+def _prep_is_meta(header):
+    nh = _prep_norm(header)
+    return any(re.search(rf"\b{re.escape(h)}\b", nh) or nh == h for h in PREP_DROP_HINTS)
+
+def _prep_to_num(series):
+    def one(v):
+        if pd.isna(v): return np.nan
+        parts = [p for p in re.split(r"[;,/]", str(v)) if re.search(r"\d", p)]
+        nums = []
+        for p in parts:
+            p = re.sub(r"[^0-9.\-]", "", p)
+            try: nums.append(float(p))
+            except Exception: pass
+        if not nums:
+            c = re.sub(r"[^0-9.\-]", "", str(v))
+            try: return float(c)
+            except Exception: return np.nan
+        return sum(nums) / len(nums)
+    return series.map(one)
+
+def _prep_match(headers, aliases):
+    normed = {h: _prep_norm(h) for h in headers}
+    for h, nh in normed.items():
+        if nh in aliases: return h
+    for h, nh in normed.items():
+        for a in aliases:
+            if a in nh or nh in a: return h
+    return None
+
+def prep_detect(df):
+    headers = list(df.columns)
+    scores = {}
+    for ft, spec in PREP_SCHEMAS.items():
+        hits = sum(1 for al in spec["features"].values() if _prep_match(headers, al) is not None)
+        scores[ft] = round(hits / len(spec["features"]), 2)
+    best = max(scores, key=scores.get)
+    return best if scores[best] > 0 else None, scores
+
+def prep_run(df, facility_type):
+    spec = PREP_SCHEMAS[facility_type]
+    headers = list(df.columns)
+    report = {"mapped": {}, "dropped_metadata": [], "extra_kept": [], "unmapped": [], "flagged": {}, "conversions": []}
+    out = pd.DataFrame()
+    for canon, aliases in spec["features"].items():
+        raw = _prep_match(headers, aliases)
+        if raw is None:
+            report["unmapped"].append(canon); continue
+        report["mapped"][raw] = canon
+        col = df[raw].astype(str) if canon == "Structure_Type" else _prep_to_num(df[raw])
+        if canon in spec.get("units", {}):
+            nh = _prep_norm(raw)
+            for hint, factor in spec["units"][canon]:
+                if re.search(rf"\b{re.escape(hint)}\b", nh):
+                    col = col * factor
+                    report["conversions"].append(f"{raw}: x{factor} -> {canon}"); break
+        out[canon] = col
+    # target
+    tgt = _prep_match(headers, spec["target_aliases"])
+    if tgt is not None:
+        report["mapped"][tgt] = "CAPEX_MMUSD"
+        t = _prep_to_num(df[tgt])
+        if re.search(r"\busd\b", _prep_norm(tgt)) and "mm" not in _prep_norm(tgt):
+            if t.median(skipna=True) and t.median(skipna=True) > 10000:
+                t = t / 1e6; report["conversions"].append(f"{tgt}: /1e6 -> CAPEX_MMUSD")
+        out["CAPEX_MMUSD"] = t
+    # unknown columns: drop metadata/ids, keep genuine numeric extras
+    known = set(report["mapped"].keys())
+    for h in headers:
+        if h in known: continue
+        if _prep_is_meta(h):
+            report["dropped_metadata"].append(h); continue
+        num = _prep_to_num(df[h])
+        if num.notna().mean() > 0.6:
+            safe = re.sub(r"[^0-9a-zA-Z]+", "_", str(h)).strip("_")
+            out[f"extra__{safe}"] = num; report["extra_kept"].append(h)
+        else:
+            report["unmapped"].append(h)
+    # range flags
+    for canon, (lo, hi) in spec.get("ranges", {}).items():
+        if canon in out.columns:
+            bad = ((out[canon] < lo) | (out[canon] > hi)) & out[canon].notna()
+            if bad.any(): report["flagged"][canon] = int(bad.sum())
+    # move target last, drop rows with no target
+    if "CAPEX_MMUSD" in out.columns:
+        out = out[out["CAPEX_MMUSD"].notna()].copy()
+        cols = [c for c in out.columns if c != "CAPEX_MMUSD"] + ["CAPEX_MMUSD"]
+        out = out[cols]
+    report["final_rows"] = len(out)
+    return out, report
+
+
 class DataPreprocessor:
     @staticmethod
     def clean_dataframe(df):
@@ -352,15 +548,112 @@ for col, label in zip(st.columns(5), ["SHALLOW WATER", "DEEP WATER", "ONSHORE", 
                     f'style="width:100%;text-align:center;display:inline-block;">{label}</a>',
                     unsafe_allow_html=True)
 
-tab_data, tab_pb, tab_mc, tab_compare, tab_ai = st.tabs(
-    ["📊 Data & Models", "🏗️ Project Builder", "🎲 Monte Carlo", "🔀 Compare Projects", "🤖 AI Advisor"])
+tab_prep, tab_data, tab_pb, tab_mc, tab_compare, tab_ai = st.tabs(
+    ["🧹 Data Preparation", "📊 Data & Models", "🏗️ Project Builder", "🎲 Monte Carlo", "🔀 Compare Projects", "🤖 AI Advisor"])
+
+
+
+# =============================================================================
+# TAB 0 - DATA PREPARATION
+# =============================================================================
+with tab_prep:
+    st.markdown('<h3 style="margin-top:0;color:#E6E9EF;">🧹 Data Preparation</h3>', unsafe_allow_html=True)
+    st.caption("Turn a messy raw CSV into a clean, training-ready dataset. The tool detects the "
+               "facility type, maps columns to the correct cost drivers, converts units, and drops "
+               "identifier columns such as names, ids and years.")
+
+    raw_file = st.file_uploader("Upload a raw CSV to clean", type="csv",
+                                key=f"prep_uploader_{st.session_state.uploader_nonce}")
+    if raw_file is not None:
+        try:
+            raw_df = pd.read_csv(raw_file)
+        except Exception as e:
+            st.error(f"Could not read CSV: {e}"); raw_df = None
+
+        if raw_df is not None:
+            st.markdown("##### Raw preview")
+            st.dataframe(raw_df.head(8), use_container_width=True)
+
+            suggested, scores = prep_detect(raw_df)
+            score_str = "  ·  ".join(f"{k} {v}" for k, v in sorted(scores.items(), key=lambda kv: -kv[1]))
+            st.caption(f"Detection scores: {score_str}")
+
+            types = list(PREP_SCHEMAS.keys())
+            default_idx = types.index(suggested) if suggested in types else 0
+            colf1, colf2 = st.columns([1, 1])
+            with colf1:
+                facility_type = st.selectbox("Facility type (confirm or override)", types, index=default_idx,
+                                             key="prep_facility_type")
+            with colf2:
+                store_name = st.text_input("Save cleaned dataset as", value=f"{facility_type}_clean.csv",
+                                           key="prep_store_name")
+
+            drivers = list(PREP_SCHEMAS[facility_type]["features"].keys())
+            st.caption(f"Cost drivers for **{facility_type}**: {', '.join(drivers)}  →  target: CAPEX_MMUSD")
+
+            if st.button("Run cleaning", type="primary", key="prep_run_btn"):
+                try:
+                    clean_df, rep = prep_run(raw_df, facility_type)
+                    st.session_state["_prep_clean_df"] = clean_df
+                    st.session_state["_prep_report"] = rep
+                    st.session_state["_prep_store_name"] = store_name
+                    toast("Cleaning complete.")
+                except Exception as e:
+                    st.error(f"Cleaning failed: {e}")
+
+    # show result if present
+    if st.session_state.get("_prep_clean_df") is not None:
+        clean_df = st.session_state["_prep_clean_df"]
+        rep = st.session_state["_prep_report"]
+        st.divider()
+        st.markdown("##### Cleaning summary")
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Final rows", rep.get("final_rows", len(clean_df)))
+        m2.metric("Cost drivers mapped", len([v for v in rep["mapped"].values() if v != "CAPEX_MMUSD"]))
+        m3.metric("Dropped (metadata)", len(rep["dropped_metadata"]))
+        m4.metric("Kept for review", len(rep["extra_kept"]))
+
+        detail = []
+        for raw, canon in rep["mapped"].items():
+            detail.append({"Raw column": raw, "Resolved as": canon, "Action": "cost driver" if canon != "CAPEX_MMUSD" else "target"})
+        for c in rep["dropped_metadata"]:
+            detail.append({"Raw column": c, "Resolved as": "—", "Action": "dropped: identifier/metadata"})
+        for c in rep["extra_kept"]:
+            detail.append({"Raw column": c, "Resolved as": f"extra__{re.sub(r'[^0-9a-zA-Z]+','_',c).strip('_')}", "Action": "kept: review before training"})
+        for c in rep["unmapped"]:
+            detail.append({"Raw column": c, "Resolved as": "—", "Action": "unmapped (left out)"})
+        st.dataframe(pd.DataFrame(detail), use_container_width=True)
+
+        if rep["conversions"]:
+            st.caption("Unit conversions applied: " + "; ".join(rep["conversions"]))
+        if rep["flagged"]:
+            st.warning("Rows outside expected range (flagged, not removed): " +
+                       ", ".join(f"{k}: {v}" for k, v in rep["flagged"].items()))
+        if rep["extra_kept"]:
+            st.info("Columns kept as 'extra__' are unknown numeric fields that might be real cost drivers. "
+                    "Review them; drop any that are actually another form of the cost (target leakage).")
+
+        st.markdown("##### Clean preview")
+        st.dataframe(clean_df.head(10), use_container_width=True)
+
+        c1, c2 = st.columns(2)
+        with c1:
+            st.download_button("⬇️ Download clean CSV", data=clean_df.to_csv(index=False),
+                               file_name=st.session_state.get("_prep_store_name", "clean.csv"),
+                               mime="text/csv", key="prep_download_btn")
+        with c2:
+            if st.button("➡️ Send to Data & Models", key="prep_send_btn"):
+                name = st.session_state.get("_prep_store_name", "clean.csv")
+                st.session_state.datasets[name] = clean_df
+                st.session_state.predictions.setdefault(name, [])
+                toast(f"'{name}' added to Data & Models."); st.rerun()
 
 
 # =============================================================================
 # TAB 1 - DATA & MODELS
 # =============================================================================
 with tab_data:
-    st.markdown('<h3 style="margin-top:0;color:#000;">📁 Data</h3>', unsafe_allow_html=True)
+    st.markdown('<h3 style="margin-top:0;color:#E6E9EF;">📁 Data</h3>', unsafe_allow_html=True)
     uploaded_files = st.file_uploader("Upload CSV files (the last column is treated as the CAPEX target)",
                                       type="csv", accept_multiple_files=True,
                                       key=f"csv_uploader_{st.session_state.uploader_nonce}")
@@ -406,7 +699,7 @@ with tab_data:
 
         # ---- training ----
         st.divider()
-        st.markdown('<h3 style="margin-top:0;color:#000;">⚙️ Model Training</h3>', unsafe_allow_html=True)
+        st.markdown('<h3 style="margin-top:0;color:#E6E9EF;">⚙️ Model Training</h3>', unsafe_allow_html=True)
         ds_name_model = st.selectbox("Dataset for training", list(st.session_state.datasets.keys()), key="ds_model")
         df_model = st.session_state.datasets[ds_name_model]
         data_ok = False
@@ -492,10 +785,10 @@ with tab_data:
                     if all_vals:
                         lo, hi = float(min(all_vals)), float(max(all_vals))
                         fig_scatter.add_trace(go.Scatter(x=[lo, hi], y=[lo, hi], mode="lines",
-                                                         line=dict(color="#888", dash="dash", width=1.5), name="Perfect fit"))
+                                                         line=dict(color="#AAB2C0", dash="dash", width=1.5), name="Perfect fit"))
                     fig_scatter.update_layout(xaxis_title="Actual CAPEX", yaxis_title="Predicted CAPEX",
                                               height=400, margin=dict(l=0, r=0, t=10, b=0),
-                                              paper_bgcolor="white", plot_bgcolor="white",
+                                              paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                                               legend=dict(orientation="h", y=-0.18))
                     st.plotly_chart(fig_scatter, use_container_width=True)
 
@@ -511,7 +804,7 @@ with tab_data:
                                                   marker_color="#00A19B" if bkey == "rf" else "#6C4DD3"))
                         fig_fi.update_layout(title=label, xaxis_title="Importance",
                                              height=max(260, 32 * len(fi_df)), margin=dict(l=0, r=0, t=35, b=0),
-                                             paper_bgcolor="white", plot_bgcolor="white")
+                                             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
                         with container:
                             st.plotly_chart(fig_fi, use_container_width=True)
                 except Exception as e:
@@ -519,7 +812,7 @@ with tab_data:
 
         # ---- PREDICT (inputs always visible once a model exists) ----
         st.divider()
-        st.markdown('<h3 style="margin-top:0;color:#000;">🎯 Predict CAPEX</h3>', unsafe_allow_html=True)
+        st.markdown('<h3 style="margin-top:0;color:#E6E9EF;">🎯 Predict CAPEX</h3>', unsafe_allow_html=True)
         ds_name_pred = st.selectbox("Dataset for prediction", list(st.session_state.datasets.keys()), key="ds_pred")
         df_pred = st.session_state.datasets[ds_name_pred]
 
@@ -590,7 +883,7 @@ with tab_data:
 
         # ---- RESULTS + DOWNLOAD ----
         st.divider()
-        st.markdown('<h3 style="margin-top:0;color:#000;">📄 Results</h3>', unsafe_allow_html=True)
+        st.markdown('<h3 style="margin-top:0;color:#E6E9EF;">📄 Results</h3>', unsafe_allow_html=True)
         ds_name_res = st.selectbox("Dataset for results", list(st.session_state.datasets.keys()), key="ds_results")
         preds = st.session_state.predictions.get(ds_name_res, [])
         if preds:
@@ -615,7 +908,7 @@ with tab_data:
 # TAB 2 - PROJECT BUILDER
 # =============================================================================
 with tab_pb:
-    st.markdown('<h4 style="margin-top:0;color:#000;">🏗️ Project Builder</h4>', unsafe_allow_html=True)
+    st.markdown('<h4 style="margin-top:0;color:#E6E9EF;">🏗️ Project Builder</h4>', unsafe_allow_html=True)
     st.caption("Assemble multi-component CAPEX projects from trained models.")
     if not st.session_state.datasets:
         st.info("No datasets loaded. Load data in the Data & Models tab first.")
@@ -724,7 +1017,7 @@ with tab_pb:
 # TAB 3 - MONTE CARLO  (FIXED: runs on real base values, usable per-dataset)
 # =============================================================================
 with tab_mc:
-    st.markdown('<h3 style="margin-top:0;color:#000;">🎲 Monte Carlo Analysis</h3>', unsafe_allow_html=True)
+    st.markdown('<h3 style="margin-top:0;color:#E6E9EF;">🎲 Monte Carlo Analysis</h3>', unsafe_allow_html=True)
     st.caption("Simulate cost uncertainty by perturbing the feature values around a base case.")
 
     trained = [ds for ds in st.session_state.datasets if f"current_pipeline__{ds}" in st.session_state]
@@ -825,7 +1118,7 @@ with tab_mc:
 # TAB 4 - COMPARE PROJECTS
 # =============================================================================
 with tab_compare:
-    st.markdown('<h3 style="margin-top:0;color:#000;">🔀 Compare Projects</h3>', unsafe_allow_html=True)
+    st.markdown('<h3 style="margin-top:0;color:#E6E9EF;">🔀 Compare Projects</h3>', unsafe_allow_html=True)
     if len(st.session_state.projects) < 2:
         st.info("Create at least 2 projects in the Project Builder to compare.")
     else:
@@ -858,7 +1151,7 @@ with tab_compare:
 # TAB 5 - AI ADVISOR
 # =============================================================================
 with tab_ai:
-    st.markdown('<h3 style="margin-top:0;color:#000;">🤖 AI CAPEX Advisor</h3>', unsafe_allow_html=True)
+    st.markdown('<h3 style="margin-top:0;color:#E6E9EF;">🤖 AI CAPEX Advisor</h3>', unsafe_allow_html=True)
     st.caption("Ask about CAPEX, cost drivers, what-if scenarios, or project risks.")
 
     if "ai_messages" not in st.session_state: st.session_state.ai_messages = []
