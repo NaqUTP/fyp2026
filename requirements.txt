@@ -6,7 +6,7 @@ scikit-learn>=1.0.0
 numpy>=1.21.0
 scipy>=1.7.0
 openpyxl>=3.0.0
-torch
+torch==2.2.2
 plotly>=5.18.0
 requests>=2.28.0
 python-pptx>=0.6.21
